@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>EduGenie - AI Learning Assistant</title>
+
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+
+    <div class="container">
+
+        <div class="card">
+
+            <div class="header">
+                <div class="badge">AI LEARNING ASSISTANT</div>
+
+                <h1>EduGenie</h1>
+
+                <p>
+                    Your Google Gemini powered learning assistant
+                </p>
+            </div>
+
+
+            <div class="form-group">
+
+                <label for="task">
+                    Choose a Learning Task
+                </label>
+
+                <select id="task">
+
+                    <option value="qa">
+                        Ask a Question
+                    </option>
+
+                    <option value="explain">
+                        Explain a Topic
+                    </option>
+
+                    <option value="quiz">
+                        Generate Quiz
+                    </option>
+
+                    <option value="summarize">
+                        Summarize
+                    </option>
+
+                    <option value="recommendations">
+                        Learning Path
+                    </option>
+
+                </select>
+
+            </div>
+
+
+            <div class="form-group">
+
+                <label for="inputText">
+                    Enter your question or topic
+                </label>
+
+                <textarea
+                    id="inputText"
+                    rows="8"
+                    placeholder="Example: Explain polymorphism in Java..."
+                ></textarea>
+
+            </div>
+
+
+            <button id="submitBtn" onclick="submitTask()">
+                <span id="buttonText">Ask EduGenie</span>
+            </button>
+
+
+            <div id="loading" class="loading hidden">
+                EduGenie is thinking...
+            </div>
+
+
+            <div id="result" class="result hidden"></div>
+
+        </div>
+
+    </div>
+
+
+<script>
+
+const taskSelect = document.getElementById("task");
+
+const inputText = document.getElementById("inputText");
+
+const resultBox = document.getElementById("result");
+
+const submitBtn = document.getElementById("submitBtn");
+
+const buttonText = document.getElementById("buttonText");
+
+const loading = document.getElementById("loading");
+
+
+const endpoints = {
+
+    qa: "/qa",
+
+    explain: "/explain",
+
+    quiz: "/quiz",
+
+    summarize: "/summarize",
+
+    recommendations: "/learn/recommendations"
+
+};
+
+
+taskSelect.addEventListener("change", function () {
+
+    const task = taskSelect.value;
+
+    const placeholders = {
+
+        qa: "Example: What is an operating system?",
+
+        explain: "Example: Explain polymorphism in Java",
+
+        quiz: "Example: Java inheritance and polymorphism",
+
+        summarize: "Paste the text you want to summarize here...",
+
+        recommendations: "Example: Python programming"
+
+    };
+
+    inputText.placeholder = placeholders[task];
+
+});
+
+
+function escapeHtml(text) {
+
+    const div = document.createElement("div");
+
+    div.textContent = text;
+
+    return div.innerHTML;
+
+}
+
+
+function renderQuiz(quiz) {
+
+    if (!Array.isArray(quiz)) {
+
+        return `<pre>${escapeHtml(JSON.stringify(quiz, null, 2))}</pre>`;
+
+    }
+
+
+    let html = "<div class='quiz-container'>";
+
+    quiz.forEach((item, index) => {
+
+        html += `
+            <div class="quiz-question">
+
+                <h3>
+                    ${index + 1}. ${escapeHtml(item.question)}
+                </h3>
+
+                <div class="options">
+        `;
+
+
+        item.options.forEach(option => {
+
+            html += `
+                <button
+                    class="quiz-option"
+                    onclick="checkAnswer(this, '${escapeHtml(item.answer).replace(/'/g, "\\'")}')"
+                >
+                    ${escapeHtml(option)}
+                </button>
+            `;
+
+        });
+
+
+        html += `
+                </div>
+
+            </div>
+        `;
+
+    });
+
+
+    html += "</div>";
+
+    return html;
+
+}
+
+
+function checkAnswer(button, correctAnswer) {
+
+    const selectedAnswer = button.textContent.trim();
+
+    const parent = button.parentElement;
+
+    const buttons = parent.querySelectorAll(".quiz-option");
+
+
+    buttons.forEach(btn => {
+
+        btn.disabled = true;
+
+        if (btn.textContent.trim() === correctAnswer) {
+
+            btn.classList.add("correct");
+
+        }
+
+    });
+
+
+    if (selectedAnswer === correctAnswer) {
+
+        button.classList.add("correct");
+
+    } else {
+
+        button.classList.add("wrong");
+
+    }
+
+}
+
+
+async function submitTask() {
+
+    const task = taskSelect.value;
+
+    const text = inputText.value.trim();
+
+
+    if (!text) {
+
+        resultBox.classList.remove("hidden");
+
+        resultBox.innerHTML = `
+            <div class="error">
+                Please enter a question or topic.
+            </div>
+        `;
+
+        return;
+
+    }
+
+
+    submitBtn.disabled = true;
+
+    loading.classList.remove("hidden");
+
+    resultBox.classList.add("hidden");
+
+
+    try {
+
+        const response = await fetch(
+            endpoints[task],
+            {
+
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify(
+                    task === "qa"
+                        ? { question: text }
+                        : { text: text }
+                )
+
+            }
+        );
+
+
+        const data = await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail || "Request failed."
+            );
+
+        }
+
+
+        resultBox.classList.remove("hidden");
+
+
+        if (task === "quiz") {
+
+            resultBox.innerHTML = renderQuiz(data.result);
+
+        } else {
+
+            resultBox.innerHTML = `
+                <div class="answer">
+                    ${escapeHtml(data.result).replace(/\n/g, "<br>")}
+                </div>
+            `;
+
+        }
+
+
+    } catch (error) {
+
+        resultBox.classList.remove("hidden");
+
+        resultBox.innerHTML = `
+            <div class="error">
+                ${escapeHtml(error.message)}
+            </div>
+        `;
+
+    } finally {
+
+        submitBtn.disabled = false;
+
+        loading.classList.add("hidden");
+
+    }
+
+}
+
+</script>
+
+</body>
+</html>
